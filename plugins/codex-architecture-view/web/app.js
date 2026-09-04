@@ -1,3 +1,5 @@
+import { downloadNodesPng } from "./node-export.js";
+import { zoomViewport } from "./zoom.js";
 import { App } from "@modelcontextprotocol/ext-apps";
 import { createCanvasRenderGate, draggedPosition } from "./drag-state.js";
 
@@ -142,12 +144,13 @@ function createNode(node) {
 
 function nodeLayerBounds() {
   const currentIds = new Set((state?.nodes || []).map((node) => node.id));
+  const heights = new Map([...byId("node-layer").querySelectorAll(".node")].map((node) => [node.dataset.nodeId, node.offsetHeight]));
   const currentPositions = [...positions.entries()]
     .filter(([nodeId]) => currentIds.has(nodeId))
-    .map(([, value]) => value);
+    .map(([nodeId, value]) => ({ ...value, height: heights.get(nodeId) || 160 }));
   return {
     maxX: Math.max(760, ...currentPositions.map((value) => value.x + 260)),
-    maxY: Math.max(500, ...currentPositions.map((value) => value.y + 160)),
+    maxY: Math.max(500, ...currentPositions.map((value) => value.y + value.height + 24)),
   };
 }
 
@@ -158,6 +161,7 @@ function renderEdges() {
   const { maxX, maxY } = nodeLayerBounds();
   layer.style.width = `${maxX}px`;
   layer.style.height = `${maxY}px`;
+  updateCanvasSize();
   svg.setAttribute("width", maxX);
   svg.setAttribute("height", maxY);
   svg.replaceChildren();
@@ -183,6 +187,23 @@ function renderEdges() {
   }
 }
 
+function updateCanvasSize() {
+  const layer = byId("node-layer");
+  const size = byId("canvas-size");
+  size.style.width = `${parseFloat(layer.style.width) * fitScale}px`;
+  size.style.height = `${parseFloat(layer.style.height) * fitScale}px`;
+  layer.style.transform = `scale(${fitScale})`;
+}
+
+function zoomAt(factor, x, y) {
+  const canvas = byId("canvas");
+  const next = zoomViewport(fitScale, factor, canvas.scrollLeft, canvas.scrollTop, x, y);
+  fitScale = next.scale;
+  updateCanvasSize();
+  canvas.scrollLeft = next.left;
+  canvas.scrollTop = next.top;
+}
+
 function fitNodes() {
   const layer = byId("node-layer");
   const canvas = byId("canvas");
@@ -192,8 +213,7 @@ function fitNodes() {
   const availableWidth = Math.max(1, canvas.clientWidth - 32);
   const availableHeight = Math.max(1, canvas.clientHeight - 32);
   fitScale = Math.min(1, availableWidth / maxX, availableHeight / maxY);
-  layer.style.transformOrigin = "top left";
-  layer.style.transform = `scale(${fitScale})`;
+  updateCanvasSize();
   return fitScale < 1;
 }
 
@@ -201,6 +221,7 @@ function renderCanvas() {
   const layer = byId("node-layer");
   layer.querySelectorAll(".node,.empty").forEach((element) => element.remove());
   const nodes = state?.nodes || [];
+  byId("download-png").disabled = nodes.length === 0;
   if (nodes.length === 0) {
     const empty = document.createElement("div");
     empty.className = "empty";
@@ -390,10 +411,39 @@ byId("fit").addEventListener("click", () => {
   byId("canvas").scrollTo({ top: 0, left: 0, behavior: "smooth" });
   showToast(fitted ? "Nodes fitted to viewport" : "Nodes are already fitted");
 });
+for (const [id, factor] of [["zoom-in", 1.2], ["zoom-out", 1 / 1.2]]) {
+  byId(id).addEventListener("click", () => {
+    const canvas = byId("canvas");
+    zoomAt(factor, canvas.clientWidth / 2, canvas.clientHeight / 2);
+  });
+}
+byId("canvas").addEventListener("wheel", (event) => {
+  if (!event.ctrlKey && !event.metaKey) return;
+  event.preventDefault();
+  const rect = byId("canvas").getBoundingClientRect();
+  const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? rect.height : 1);
+  zoomAt(Math.exp(-delta * 0.01), event.clientX - rect.left, event.clientY - rect.top);
+}, { passive: false });
+let exporting = false;
+byId("download-png").addEventListener("click", async () => {
+  if (exporting) return;
+  exporting = true;
+  const button = byId("download-png");
+  button.textContent = "Preparing PNG…";
+  try {
+    await downloadNodesPng(byId("node-layer"), state?.thread?.name || "architecture");
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : "PNG export failed");
+  } finally {
+    exporting = false;
+    button.textContent = "Download nodes PNG";
+  }
+});
 byId("task-select").addEventListener("change", async (event) => {
   const threadId = event.currentTarget.value;
   fitScale = 1;
-  byId("node-layer").style.transform = "";
+  updateCanvasSize();
+  byId("canvas").scrollTo(0, 0);
   await refresh(threadId);
   connectEventStream(threadId);
   if (standalone) history.replaceState(null, "", `?thread=${encodeURIComponent(threadId)}`);
