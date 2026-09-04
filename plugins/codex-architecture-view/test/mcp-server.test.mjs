@@ -31,9 +31,9 @@ test("exposes the complete Architecture View MCP surface", async (context) => {
   assert.match(resource.contents[0].text, /localStorage/);
   assert.match(resource.contents[0].text, /pointerdown/);
   assert.match(resource.contents[0].text, /Nodes fitted to viewport/);
-  assert.match(resource.contents[0].text, /html,body\{[^}]*height:100%/);
-  assert.match(resource.contents[0].text, /\.app\{[^}]*height:100%[^}]*min-height:0/);
-  assert.match(resource.contents[0].text, /@media\(max-width:850px\)\{\.canvas-wrap\{min-height:0\}\.event-section\{height:auto\}/);
+  assert.match(resource.contents[0].text, /html,body\{[^}]*min-height:100dvh/);
+  assert.match(resource.contents[0].text, /\.app\{[^}]*height:100dvh[^}]*min-height:0/);
+  assert.match(resource.contents[0].text, /@media\(max-width:850px\)\{\.app\{height:100dvh;max-height:100dvh\}\.canvas-wrap\{min-height:0\}\.event-section\{height:auto\}/);
   assert.match(resource.contents[0].text, /@media\(max-width:560px\)\{\.rail\{min-height:0\}/);
   assert.doesNotMatch(resource.contents[0].text, /__APP_BUNDLE__/);
 });
