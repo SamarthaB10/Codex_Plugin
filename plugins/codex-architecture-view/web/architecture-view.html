@@ -13,7 +13,7 @@
     .canvas-wrap,.rail{height:100%;min-height:0}
     .rail{overflow:hidden;grid-template-rows:auto auto minmax(0,1fr)}
     @media(max-width:850px){.app{height:100dvh;max-height:100dvh}.canvas-wrap{min-height:0}.event-section{height:auto}}
-    @media(max-width:560px){.rail{min-height:0}}
+    @media(max-width:560px){html[data-display-mode="pip"] .workspace{grid-template-columns:minmax(0,1fr) minmax(220px,38vw)}html[data-display-mode="pip"] .canvas-wrap{height:100%;min-height:0;border-right:1px solid var(--line);border-bottom:0}html[data-display-mode="pip"] .rail{height:100%;min-height:0}}
   </style>
 </head>
 <body>

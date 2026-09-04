@@ -10,6 +10,8 @@ let refreshTimer = null;
 let refreshing = false;
 let eventSource = null;
 let fitScale = 1;
+let activeDragCount = 0;
+let pendingCanvasRender = false;
 const standalone = window.parent === window;
 
 function positionStorageKey(threadId) {
@@ -102,9 +104,11 @@ function createNode(node) {
   let frame = 0;
   let drag = null;
   element.addEventListener("pointerdown", (event) => {
-    if (event.button !== 0) return;
+    if (event.button !== 0 || drag) return;
+    event.preventDefault();
     const current = positions.get(node.id);
     drag = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, x: current.x, y: current.y };
+    activeDragCount += 1;
     element.setPointerCapture(event.pointerId);
     element.classList.add("dragging");
   });
@@ -121,11 +125,17 @@ function createNode(node) {
   const stop = (event) => {
     if (!drag || event.pointerId !== drag.pointerId) return;
     drag = null;
+    activeDragCount = Math.max(0, activeDragCount - 1);
     element.classList.remove("dragging");
     savePositions();
+    if (activeDragCount === 0 && pendingCanvasRender) {
+      pendingCanvasRender = false;
+      renderCanvas();
+    }
   };
   element.addEventListener("pointerup", stop);
   element.addEventListener("pointercancel", stop);
+  element.addEventListener("lostpointercapture", stop);
   return element;
 }
 
@@ -296,7 +306,8 @@ function render() {
   byId("agent-summary").textContent = `${state.agents.length} live`;
   byId("event-count").textContent = state.events.length;
   renderTaskSelect();
-  renderCanvas();
+  if (activeDragCount > 0) pendingCanvasRender = true;
+  else renderCanvas();
   renderAgents();
   renderEvents();
   renderConversation();

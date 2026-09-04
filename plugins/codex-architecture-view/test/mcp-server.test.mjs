@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -30,6 +31,9 @@ test("exposes the complete Architecture View MCP surface", async (context) => {
   assert.match(resource.contents[0].text, /EventSource/);
   assert.match(resource.contents[0].text, /localStorage/);
   assert.match(resource.contents[0].text, /pointerdown/);
+  const appSource = await readFile(resolve(root, "web/app.js"), "utf8");
+  assert.match(appSource, /activeDragCount/);
+  assert.match(appSource, /pendingCanvasRender/);
   assert.match(resource.contents[0].text, /Nodes fitted to viewport/);
   assert.match(resource.contents[0].text, /html,body\{[^}]*min-height:100dvh/);
   assert.match(resource.contents[0].text, /\.app\{[^}]*height:100dvh[^}]*min-height:0/);
@@ -38,6 +42,6 @@ test("exposes the complete Architecture View MCP surface", async (context) => {
   assert.match(resource.contents[0].text, /\.canvas-wrap,\.rail\{height:100%;min-height:0/);
   assert.match(resource.contents[0].text, /\.rail\{[^}]*overflow:hidden/);
   assert.match(resource.contents[0].text, /@media\(max-width:850px\)\{\.app\{height:100dvh;max-height:100dvh\}\.canvas-wrap\{min-height:0\}\.event-section\{height:auto\}/);
-  assert.match(resource.contents[0].text, /@media\(max-width:560px\)\{\.rail\{min-height:0\}/);
+  assert.match(resource.contents[0].text, /@media\(max-width:560px\)\{html\[data-display-mode="pip"\] \.workspace\{grid-template-columns:minmax\(0,1fr\) minmax\(220px,38vw\)\}/);
   assert.doesNotMatch(resource.contents[0].text, /__APP_BUNDLE__/);
 });

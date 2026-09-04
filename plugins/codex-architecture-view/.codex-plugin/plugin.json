@@ -1,6 +1,6 @@
 {
   "name": "codex-architecture-view",
-  "version": "0.1.0+codex.20260904194159",
+  "version": "0.1.0+codex.20260904194545",
   "description": "Observe live Codex task architecture and message active agents.",
   "author": {
     "name": "Samartha Bapat"
