@@ -129,12 +129,22 @@ function createNode(node) {
   return element;
 }
 
+function nodeLayerBounds() {
+  const currentIds = new Set((state?.nodes || []).map((node) => node.id));
+  const currentPositions = [...positions.entries()]
+    .filter(([nodeId]) => currentIds.has(nodeId))
+    .map(([, value]) => value);
+  return {
+    maxX: Math.max(760, ...currentPositions.map((value) => value.x + 260)),
+    maxY: Math.max(500, ...currentPositions.map((value) => value.y + 160)),
+  };
+}
+
 function renderEdges() {
   if (!state) return;
   const svg = byId("edges");
   const layer = byId("node-layer");
-  const maxX = Math.max(760, ...[...positions.values()].map((value) => value.x + 260));
-  const maxY = Math.max(500, ...[...positions.values()].map((value) => value.y + 160));
+  const { maxX, maxY } = nodeLayerBounds();
   layer.style.width = `${maxX}px`;
   layer.style.height = `${maxY}px`;
   svg.setAttribute("width", maxX);
@@ -167,11 +177,10 @@ function fitNodes() {
   const canvas = byId("canvas");
   const nodes = state?.nodes || [];
   if (!nodes.length || !canvas.clientWidth || !canvas.clientHeight) return false;
-  const maxX = Math.max(760, ...[...positions.values()].map((value) => value.x + 260));
-  const maxY = Math.max(500, ...[...positions.values()].map((value) => value.y + 160));
-  const availableWidth = Math.max(320, canvas.clientWidth - 32);
-  const availableHeight = Math.max(240, canvas.clientHeight - 32);
-  fitScale = Math.max(0.6, Math.min(1, availableWidth / maxX, availableHeight / maxY));
+  const { maxX, maxY } = nodeLayerBounds();
+  const availableWidth = Math.max(1, canvas.clientWidth - 32);
+  const availableHeight = Math.max(1, canvas.clientHeight - 32);
+  fitScale = Math.min(1, availableWidth / maxX, availableHeight / maxY);
   layer.style.transformOrigin = "top left";
   layer.style.transform = `scale(${fitScale})`;
   return fitScale < 1;
