@@ -1,6 +1,5 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -31,9 +30,6 @@ test("exposes the complete Architecture View MCP surface", async (context) => {
   assert.match(resource.contents[0].text, /EventSource/);
   assert.match(resource.contents[0].text, /localStorage/);
   assert.match(resource.contents[0].text, /pointerdown/);
-  const appSource = await readFile(resolve(root, "web/app.js"), "utf8");
-  assert.match(appSource, /activeDragCount/);
-  assert.match(appSource, /pendingCanvasRender/);
   assert.match(resource.contents[0].text, /Nodes fitted to viewport/);
   assert.match(resource.contents[0].text, /html,body\{[^}]*min-height:100dvh/);
   assert.match(resource.contents[0].text, /\.app\{[^}]*height:100dvh[^}]*min-height:0/);

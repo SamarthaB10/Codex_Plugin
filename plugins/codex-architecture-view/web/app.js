@@ -1,4 +1,5 @@
 import { App } from "@modelcontextprotocol/ext-apps";
+import { createCanvasRenderGate, draggedPosition } from "./drag-state.js";
 
 const ui = new App({ name: "codex-architecture-view", version: "0.1.0" }, {}, { autoResize: true });
 const byId = (id) => document.getElementById(id);
@@ -10,9 +11,8 @@ let refreshTimer = null;
 let refreshing = false;
 let eventSource = null;
 let fitScale = 1;
-let activeDragCount = 0;
-let pendingCanvasRender = false;
 const standalone = window.parent === window;
+const canvasRenderGate = createCanvasRenderGate(() => renderCanvas());
 
 function positionStorageKey(threadId) {
   return `codex-architecture-view:positions:${threadId}`;
@@ -108,13 +108,18 @@ function createNode(node) {
     event.preventDefault();
     const current = positions.get(node.id);
     drag = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, x: current.x, y: current.y };
-    activeDragCount += 1;
+    canvasRenderGate.startDrag();
     element.setPointerCapture(event.pointerId);
     element.classList.add("dragging");
   });
   element.addEventListener("pointermove", (event) => {
     if (!drag || event.pointerId !== drag.pointerId) return;
-    const next = { x: Math.max(0, drag.x + (event.clientX - drag.startX) / fitScale), y: Math.max(0, drag.y + (event.clientY - drag.startY) / fitScale) };
+    const next = draggedPosition(
+      { x: drag.x, y: drag.y },
+      { x: drag.startX, y: drag.startY },
+      { x: event.clientX, y: event.clientY },
+      fitScale,
+    );
     positions.set(node.id, next);
     cancelAnimationFrame(frame);
     frame = requestAnimationFrame(() => {
@@ -125,13 +130,9 @@ function createNode(node) {
   const stop = (event) => {
     if (!drag || event.pointerId !== drag.pointerId) return;
     drag = null;
-    activeDragCount = Math.max(0, activeDragCount - 1);
     element.classList.remove("dragging");
     savePositions();
-    if (activeDragCount === 0 && pendingCanvasRender) {
-      pendingCanvasRender = false;
-      renderCanvas();
-    }
+    canvasRenderGate.stopDrag();
   };
   element.addEventListener("pointerup", stop);
   element.addEventListener("pointercancel", stop);
@@ -306,8 +307,7 @@ function render() {
   byId("agent-summary").textContent = `${state.agents.length} live`;
   byId("event-count").textContent = state.events.length;
   renderTaskSelect();
-  if (activeDragCount > 0) pendingCanvasRender = true;
-  else renderCanvas();
+  canvasRenderGate.requestRender();
   renderAgents();
   renderEvents();
   renderConversation();
