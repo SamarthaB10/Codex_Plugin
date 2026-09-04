@@ -9,6 +9,7 @@ let tasks = [];
 let refreshTimer = null;
 let refreshing = false;
 let eventSource = null;
+let fitScale = 1;
 const standalone = window.parent === window;
 
 function positionStorageKey(threadId) {
@@ -109,7 +110,7 @@ function createNode(node) {
   });
   element.addEventListener("pointermove", (event) => {
     if (!drag || event.pointerId !== drag.pointerId) return;
-    const next = { x: Math.max(0, drag.x + event.clientX - drag.startX), y: Math.max(0, drag.y + event.clientY - drag.startY) };
+    const next = { x: Math.max(0, drag.x + (event.clientX - drag.startX) / fitScale), y: Math.max(0, drag.y + (event.clientY - drag.startY) / fitScale) };
     positions.set(node.id, next);
     cancelAnimationFrame(frame);
     frame = requestAnimationFrame(() => {
@@ -159,6 +160,21 @@ function renderEdges() {
     label.textContent = relation.label || relation.kind;
     svg.append(path, label);
   }
+}
+
+function fitNodes() {
+  const layer = byId("node-layer");
+  const canvas = byId("canvas");
+  const nodes = state?.nodes || [];
+  if (!nodes.length || !canvas.clientWidth || !canvas.clientHeight) return false;
+  const maxX = Math.max(760, ...[...positions.values()].map((value) => value.x + 260));
+  const maxY = Math.max(500, ...[...positions.values()].map((value) => value.y + 160));
+  const availableWidth = Math.max(320, canvas.clientWidth - 32);
+  const availableHeight = Math.max(240, canvas.clientHeight - 32);
+  fitScale = Math.max(0.6, Math.min(1, availableWidth / maxX, availableHeight / maxY));
+  layer.style.transformOrigin = "top left";
+  layer.style.transform = `scale(${fitScale})`;
+  return fitScale < 1;
 }
 
 function renderCanvas() {
@@ -349,9 +365,15 @@ ui.ontoolresult = (result) => {
   }
 };
 byId("refresh").addEventListener("click", () => refresh());
-byId("fit").addEventListener("click", () => { byId("canvas").scrollTo({ top: 0, left: 0, behavior: "smooth" }); });
+byId("fit").addEventListener("click", () => {
+  const fitted = fitNodes();
+  byId("canvas").scrollTo({ top: 0, left: 0, behavior: "smooth" });
+  showToast(fitted ? "Nodes fitted to viewport" : "Nodes are already fitted");
+});
 byId("task-select").addEventListener("change", async (event) => {
   const threadId = event.currentTarget.value;
+  fitScale = 1;
+  byId("node-layer").style.transform = "";
   await refresh(threadId);
   connectEventStream(threadId);
   if (standalone) history.replaceState(null, "", `?thread=${encodeURIComponent(threadId)}`);
