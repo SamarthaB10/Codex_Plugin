@@ -1,0 +1,20 @@
+{
+  "name": "codex-plugin",
+  "interface": {
+    "displayName": "Codex Plugin"
+  },
+  "plugins": [
+    {
+      "name": "codex-architecture-view",
+      "source": {
+        "source": "local",
+        "path": "./plugins/codex-architecture-view"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

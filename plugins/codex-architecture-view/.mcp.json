@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "architecture-view": {
+      "command": "node",
+      "args": ["./server/index.mjs"],
+      "cwd": ".",
+      "env": {
+        "CODEX_APP_SERVER_URL": "ws://127.0.0.1:4500"
+      }
+    }
+  }
+}

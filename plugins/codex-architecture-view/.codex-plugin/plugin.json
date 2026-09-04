@@ -1,0 +1,27 @@
+{
+  "name": "codex-architecture-view",
+  "version": "0.1.0+codex.20260904185158",
+  "description": "Observe live Codex task architecture and message active agents.",
+  "author": {
+    "name": "Samartha Bapat"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Codex Architecture View",
+    "shortDescription": "See live task architecture inside Codex.",
+    "longDescription": "Open a live architecture canvas for a Codex task. Inspect nodes, agent work, relationships, conversation, and events, then send guidance to the task without leaving Codex.",
+    "developerName": "Samartha Bapat",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Visualize the architecture of this task.",
+      "Open the live agent architecture view.",
+      "Show me how this task is built."
+    ],
+    "brandColor": "#0A84FF"
+  },
+  "mcpServers": "./.mcp.json"
+}
