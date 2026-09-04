@@ -5,6 +5,15 @@ description: Report live software architecture while Codex builds or changes a p
 
 # Architecture View
 
+## Resolve the invocation target
+
+When the user invokes this skill with wording such as “of this”, “this project”, or “the current task”:
+
+1. Use the active Codex task and its workspace as the target. Do not switch to a mock workflow or an unrelated recent task.
+2. Read the current architecture state before adding records. Reuse existing node and relationship IDs.
+3. If the active task has no architecture records, run the existing-project inventory pass below.
+4. If the task is not loaded by the app-server, report that state and open the view only after a valid task ID is available. Do not create a static substitute.
+
 ## Report work
 
 1. When a software task identifies or creates a service, module, component, endpoint, mapping, worker, queue, or store, call `publish_architecture_event` with `upsert-node` after file or task evidence exists.
@@ -32,7 +41,8 @@ This inventory pass makes the view useful after a project is finished, not only 
 1. Call `open_architecture_view` when the user asks to see or observe architecture. Pass a task ID only when the user names a different task.
 2. Read `viewerUrl` from the tool result. Call `open_in_codex` with a browser target for that address and `placement: "right"`.
 3. Keep the right panel open while the task runs. The live service pushes new task state to this panel.
-4. Use `get_architecture_state` when architecture data is needed without the visual view.
-5. Use `message_codex_task` when the user gives guidance for a running task outside the view.
+4. Always use the live Architecture View service connected to the Codex app-server. Do not open `dist/architecture-view.html` or another local file as the user-facing view, and do not present a static HTML snapshot as live state.
+5. Use `get_architecture_state` when architecture data is needed without the visual view.
+6. Use `message_codex_task` when the user gives guidance for a running task outside the view.
 
 The message control sends guidance through the same Codex app-server task.
