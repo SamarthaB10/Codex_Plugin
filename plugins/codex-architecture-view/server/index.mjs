@@ -87,7 +87,7 @@ server.registerTool("open_architecture_view", {
 }, async ({ threadId }, extra) => {
   const selectedId = await selectThread(threadId, extra);
   const state = await stateFor(selectedId);
-  return textResult(`The live architecture service is ready for ${state.thread.name}.`, {
+  return textResult(`The live architecture service is ready. [Open architecture](${liveView.viewerUrl(selectedId)}) to reopen it after closing the panel.`, {
     ...state,
     viewerUrl: liveView.viewerUrl(selectedId),
   });

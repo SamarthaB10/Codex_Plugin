@@ -405,6 +405,27 @@ ui.ontoolresult = (result) => {
     render();
   }
 };
+byId("copy-reopen-link").addEventListener("click", async () => {
+  try {
+    if (!state?.thread?.id) throw new Error("Select a task first.");
+    const url = standalone
+      ? `${location.origin}/?thread=${encodeURIComponent(state.thread.id)}`
+      : (await call("open_architecture_view", { threadId: state.thread.id })).viewerUrl;
+    const field = byId("reopen-link");
+    field.value = url;
+    field.hidden = false;
+    field.focus();
+    field.select();
+    try {
+      await navigator.clipboard.writeText(url);
+      showToast("Link copied. Use it to reopen this task while the service is running.");
+    } catch {
+      showToast("Copy the selected link to reopen this task.");
+    }
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : "Could not get the reopen link.");
+  }
+});
 byId("refresh").addEventListener("click", () => refresh());
 byId("fit").addEventListener("click", () => {
   const fitted = fitNodes();
