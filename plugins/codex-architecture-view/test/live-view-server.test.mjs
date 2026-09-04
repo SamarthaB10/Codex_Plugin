@@ -38,6 +38,12 @@ test("serves live architecture state outside the task message", async (context) 
   notify({ method: "turn/completed" });
   const second = await readUntil(reader, '"revision":2');
   assert.match(second, /event: state/);
+  controller.abort();
+  const reopened = await fetch(service.viewerUrl("task-1"));
+  assert.equal(reopened.status, 200);
+  assert.match(await reopened.text(), /Copy reopen link/);
+  const reopenedState = await fetch(`${service.viewerUrl()}api/state?threadId=task-1`).then((response) => response.json());
+  assert.deepEqual(reopenedState, { thread: { id: "task-1" }, revision: 2 });
 });
 
 async function readUntil(reader, expected) {

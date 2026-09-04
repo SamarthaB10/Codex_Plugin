@@ -8,6 +8,12 @@ export async function downloadNodesPng(layer, name) {
     const transform = new DOMMatrixReadOnly(node.style.transform);
     return { x: transform.m41, y: transform.m42, width: node.offsetWidth, height: node.offsetHeight };
   });
+  const edges = layer.querySelector(".edges");
+  // Include curves and labels that extend beyond the node cards.
+  if (edges?.childElementCount) {
+    const bounds = edges.getBBox();
+    boxes.push({ x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height });
+  }
   const padding = 24;
   const left = Math.min(...boxes.map((box) => box.x)) - padding;
   const top = Math.min(...boxes.map((box) => box.y)) - padding;
@@ -17,6 +23,20 @@ export async function downloadNodesPng(layer, name) {
   const pixelRatio = Math.min(2, 8192 / width, 8192 / height, Math.sqrt(16000000 / (width * height)));
   const snapshot = document.createElement("div");
   Object.assign(snapshot.style, { position: "fixed", left: "0", top: "0", zIndex: "-1", width: `${width}px`, height: `${height}px`, background: "#030303" });
+  if (edges) {
+    const clone = edges.cloneNode(true);
+    clone.removeAttribute("id");
+    // Inline SVG paint attributes so rasterization retains the graph styles.
+    const originals = [...edges.querySelectorAll("path,text")];
+    clone.querySelectorAll("path,text").forEach((element, index) => {
+      const style = getComputedStyle(originals[index]);
+      for (const property of ["fill", "stroke", "stroke-width", "opacity", "font-size", "font-family"]) {
+        element.setAttribute(property, style.getPropertyValue(property));
+      }
+    });
+    clone.style.transform = `translate(${-left}px, ${-top}px)`;
+    snapshot.append(clone);
+  }
   nodes.forEach((node, index) => {
     const clone = node.cloneNode(true);
     clone.classList.remove("dragging");
