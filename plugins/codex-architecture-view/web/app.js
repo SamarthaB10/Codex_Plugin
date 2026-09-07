@@ -215,6 +215,14 @@ function createNode(node) {
   role.className = "node-role";
   role.textContent = node.role;
   element.append(kind, title, role);
+  const childNodes = (state?.nodes || []).filter(({ parentId }) => parentId === node.id);
+  if (collapsedNodes.has(node.id) && childNodes.length) {
+    const grouped = document.createElement("div");
+    grouped.className = "node-children";
+    grouped.setAttribute("aria-label", `Grouped nodes: ${childNodes.map(({ name }) => name).join(", ")}`);
+    grouped.textContent = `Grouped: ${childNodes.map(({ name }) => name).join(" · ")}`;
+    element.append(grouped);
+  }
   let frame = 0;
   let drag = null;
   element.addEventListener("pointerdown", (event) => {
