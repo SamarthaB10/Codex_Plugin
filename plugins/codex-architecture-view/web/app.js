@@ -2,6 +2,7 @@ import { downloadNodesPng } from "./node-export.js";
 import { zoomViewport } from "./zoom.js";
 import { App } from "@modelcontextprotocol/ext-apps";
 import { createCanvasRenderGate, draggedPosition } from "./drag-state.js";
+import { routeEdge } from "./edge-routing.js";
 import { layoutArchitecture, visibleArchitecture } from "./semantic-layout.js";
 
 const ui = new App({ name: "codex-architecture-view", version: "0.1.0" }, {}, { autoResize: true });
@@ -30,6 +31,7 @@ let refreshTimer = null;
 let refreshing = false;
 let eventSource = null;
 let fitScale = 1;
+let pendingNameRequest = null;
 const standalone = window.parent === window;
 const canvasRenderGate = createCanvasRenderGate(() => renderCanvas());
 
@@ -44,7 +46,7 @@ function loadPositions(threadId) {
   customRelationships.clear();
   customGroups.clear();
   selectedNodeIds.clear();
-  interactionMode = null;
+  setInteractionMode(null);
   connectSourceId = null;
   nodeLayouts = {};
   layoutSignature = "";
@@ -119,6 +121,37 @@ function showToast(message) {
   toast.textContent = message;
   toast.classList.add("show");
   window.setTimeout(() => toast.classList.remove("show"), 2200);
+}
+
+function setInteractionMode(mode) {
+  interactionMode = mode;
+  for (const [id, activeMode] of [["connect-nodes", "connect"], ["group-nodes", "group"]]) {
+    const control = byId(id);
+    if (!control) continue;
+    const active = mode === activeMode;
+    control.dataset.active = String(active);
+    control.setAttribute("aria-pressed", String(active));
+  }
+}
+
+function openNameDialog({ title, description, value, submitLabel, onSubmit, onCancel }) {
+  pendingNameRequest = { onSubmit, onCancel };
+  byId("name-dialog-title").textContent = title;
+  byId("name-dialog-description").textContent = description;
+  byId("name-dialog-input").value = value;
+  byId("name-dialog-submit").textContent = submitLabel;
+  byId("name-dialog").showModal();
+  window.requestAnimationFrame(() => {
+    byId("name-dialog-input").focus();
+    byId("name-dialog-input").select();
+  });
+}
+
+function cancelNameDialog() {
+  const request = pendingNameRequest;
+  pendingNameRequest = null;
+  if (byId("name-dialog").open) byId("name-dialog").close();
+  request?.onCancel?.();
 }
 
 function statusClass(value) {
@@ -196,16 +229,29 @@ function selectNode(node) {
       return;
     }
     if (connectSourceId === node.id) return;
-    const label = window.prompt("Connection label", "Connects to");
-    if (label?.trim()) {
-      const id = `custom:${connectSourceId}:${node.id}:${Date.now()}`;
-      customRelationships.set(id, { id, from: connectSourceId, to: node.id, kind: "depends-on", label: label.trim(), verification: "verified", custom: true });
-      saveWorkspace();
-      showToast("Connection added");
-    }
-    interactionMode = null;
-    connectSourceId = null;
-    renderCanvas();
+    const sourceId = connectSourceId;
+    const sourceName = architectureNodes().find(({ id }) => id === sourceId)?.name || sourceId;
+    openNameDialog({
+      title: "Connection label",
+      description: `Add a connection from ${sourceName} to ${node.name}.`,
+      value: "Connects to",
+      submitLabel: "Add connection",
+      onSubmit: (label) => {
+        const id = `custom:${sourceId}:${node.id}:${Date.now()}`;
+        customRelationships.set(id, { id, from: sourceId, to: node.id, kind: "depends-on", label, verification: "verified", custom: true });
+        setInteractionMode(null);
+        connectSourceId = null;
+        saveWorkspace();
+        renderCanvas();
+        showToast("Connection added");
+      },
+      onCancel: () => {
+        setInteractionMode(null);
+        connectSourceId = null;
+        renderCanvas();
+        showToast("Connection canceled");
+      },
+    });
     return;
   }
   if (interactionMode === "group") {
@@ -233,7 +279,10 @@ function createNode(node) {
   element.dataset.container = String(hasChildren);
   element.tabIndex = 0;
   element.setAttribute("role", "group");
-  element.setAttribute("aria-label", `${node.name}${selectedNodeId === node.id ? ", selected" : ""}${nodeLayouts[node.id]?.unmapped ? ", unmapped" : ""}. Press Enter for details.`);
+  const nodeAction = interactionMode === "connect"
+    ? (connectSourceId ? "Press Enter to use as the connection target." : "Press Enter to use as the connection source.")
+    : interactionMode === "group" ? "Press Enter to add or remove from the group selection." : "Press Enter for details.";
+  element.setAttribute("aria-label", `${node.name}${selectedNodeId === node.id ? ", selected" : ""}${selectedNodeIds.has(node.id) ? ", selected for grouping" : ""}${nodeLayouts[node.id]?.unmapped ? ", unmapped" : ""}. ${nodeAction}`);
   const kind = document.createElement("div");
   kind.className = "node-kind";
   kind.textContent = nodeLayouts[node.id]?.unmapped ? "unmapped" : node.nodeKind || "module";
@@ -361,25 +410,36 @@ function renderEdges() {
   svg.setAttribute("width", maxX);
   svg.setAttribute("height", maxY);
   svg.replaceChildren();
-  const labelLanes = new Map();
+  const occupiedLabels = [];
+  const containerIds = new Set(visibleGraph.visibleNodes.filter((candidate) => (
+    visibleGraph.visibleNodes.some(({ parentId }) => parentId === candidate.id)
+  )).map(({ id }) => id));
+  const boxes = new Map(visibleGraph.visibleNodes.map((node) => {
+    const position = positions.get(node.id);
+    const layout = nodeLayouts[node.id];
+    return [node.id, {
+      x: position?.x || 0,
+      y: position?.y || 0,
+      width: layout?.width || 220,
+      height: layout?.height || 132,
+    }];
+  }));
   for (const [relationIndex, relation] of visibleGraph.visibleRelationships.entries()) {
     const from = positions.get(relation.from);
     const to = positions.get(relation.to);
     if (!from || !to) continue;
-    const fromLayout = nodeLayouts[relation.from];
-    const toLayout = nodeLayouts[relation.to];
-    const x1 = from.x + (fromLayout?.width || 220);
-    const y1 = from.y + Math.min(66, (fromLayout?.height || 112) / 2);
-    const x2 = to.x;
-    const y2 = to.y + Math.min(66, (toLayout?.height || 112) / 2);
-    const direction = x2 >= x1 ? 1 : -1;
-    const bend = Math.max(56, Math.abs(x2 - x1) * .42);
-    const laneKey = `${Math.round((y1 + y2) / 2 / 32)}`;
-    const lane = (labelLanes.get(laneKey) || 0) + 1;
-    labelLanes.set(laneKey, lane);
-    const midX = (x1 + x2) / 2;
-    const routeOffset = (relationIndex % 2 === 0 ? 1 : -1) * (34 + Math.floor(relationIndex / 2) * 22);
-    const labelY = (y1 + y2) / 2 + routeOffset - 10 - (lane - 1) * 12;
+    const route = routeEdge({
+      source: boxes.get(relation.from),
+      target: boxes.get(relation.to),
+      obstacles: [...boxes].filter(([id]) => (
+        id !== relation.from && id !== relation.to && !containerIds.has(id)
+      )).map(([, box]) => box),
+      labelObstacles: [...boxes.values()],
+      occupiedLabels,
+      label: relation.label || relation.kind,
+      index: relationIndex,
+    });
+    occupiedLabels.push(route.labelBox);
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
     path.setAttribute("class", "edge");
     path.dataset.relationshipId = relation.id;
@@ -387,11 +447,11 @@ function renderEdges() {
     path.setAttribute("tabindex", "0");
     path.setAttribute("aria-label", `${relation.label}: ${relation.from} to ${relation.to}`);
     if (relation.relationshipIds.some((id) => selectedRelationshipIds.includes(id))) path.classList.add("selected");
-    path.setAttribute("d", `M ${x1} ${y1} C ${x1 + direction * bend} ${y1 + routeOffset}, ${x2 - direction * bend} ${y2 + routeOffset}, ${x2} ${y2}`);
+    path.setAttribute("d", route.path);
     const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
     label.setAttribute("class", "edge-label");
-    label.setAttribute("x", String(midX));
-    label.setAttribute("y", String(labelY));
+    label.setAttribute("x", String(route.label.x));
+    label.setAttribute("y", String(route.label.y));
     label.setAttribute("text-anchor", "middle");
     label.textContent = relation.label || relation.kind;
     const select = () => {
@@ -780,11 +840,10 @@ byId("arrange").addEventListener("click", () => {
   showToast("Architecture layout recalculated");
 });
 byId("connect-nodes").addEventListener("click", () => {
-  interactionMode = interactionMode === "connect" ? null : "connect";
+  const mode = interactionMode === "connect" ? null : "connect";
   connectSourceId = null;
-  byId("group-nodes").dataset.active = "false";
-  byId("connect-nodes").dataset.active = String(interactionMode === "connect");
-  showToast(interactionMode === "connect" ? "Select the source, then the target node" : "Connection mode off");
+  setInteractionMode(mode);
+  showToast(mode === "connect" ? "Select the source, then the target node" : "Connection mode off");
 });
 byId("group-nodes").addEventListener("click", () => {
   if (interactionMode === "group") {
@@ -793,37 +852,66 @@ byId("group-nodes").addEventListener("click", () => {
       showToast("Select at least two nodes");
       return;
     }
-    const name = window.prompt("Group name", "New architecture group");
-    if (name?.trim()) {
-      const id = `custom-group:${Date.now()}`;
-      customGroups.set(id, { id, name: name.trim(), memberIds });
-      selectedNodeIds.clear();
-      interactionMode = null;
-      byId("group-nodes").dataset.active = "false";
-      saveWorkspace();
-      layoutSignature = "";
-      renderCanvas();
-      showToast("Group created");
-    }
+    openNameDialog({
+      title: "Group name",
+      description: `Create a group for ${memberIds.length} selected nodes.`,
+      value: "New architecture group",
+      submitLabel: "Create group",
+      onSubmit: (name) => {
+        const id = `custom-group:${Date.now()}`;
+        customGroups.set(id, { id, name, memberIds });
+        selectedNodeIds.clear();
+        setInteractionMode(null);
+        saveWorkspace();
+        layoutSignature = "";
+        renderCanvas();
+        showToast("Group created");
+      },
+      onCancel: () => {
+        selectedNodeIds.clear();
+        setInteractionMode(null);
+        renderCanvas();
+        showToast("Group canceled");
+      },
+    });
     return;
   }
   selectedNodeIds.clear();
-  interactionMode = "group";
-  byId("connect-nodes").dataset.active = "false";
-  byId("group-nodes").dataset.active = "true";
+  setInteractionMode("group");
   showToast("Select nodes to group, then press Group nodes again");
 });
 byId("reset-layout").addEventListener("click", () => {
   pins.clear();
   positions.clear();
   selectedNodeIds.clear();
-  interactionMode = null;
+  setInteractionMode(null);
   nodeLayouts = {};
   saveWorkspace();
   layoutSignature = "";
   renderCanvas();
   requestLayout({ force: true, reset: true });
   showToast("Pins cleared and layout reset");
+});
+byId("name-dialog-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const input = byId("name-dialog-input");
+  const value = input.value.trim();
+  if (!value) {
+    input.setCustomValidity("Enter a name.");
+    input.reportValidity();
+    return;
+  }
+  input.setCustomValidity("");
+  const request = pendingNameRequest;
+  pendingNameRequest = null;
+  byId("name-dialog").close();
+  request?.onSubmit(value);
+});
+byId("name-dialog-input").addEventListener("input", (event) => event.currentTarget.setCustomValidity(""));
+byId("name-dialog-cancel").addEventListener("click", cancelNameDialog);
+byId("name-dialog").addEventListener("cancel", (event) => {
+  event.preventDefault();
+  cancelNameDialog();
 });
 for (const [id, factor] of [["zoom-in", 1.2], ["zoom-out", 1 / 1.2]]) {
   byId(id).addEventListener("click", () => {

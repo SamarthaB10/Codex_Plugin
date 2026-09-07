@@ -48,8 +48,8 @@ You can also select the **visualize-architecture** skill. Codex inspects the pro
 | Task selector | Shows architecture for another task. |
 | Arrange | Runs semantic layout again and keeps pinned nodes in place. |
 | Reset layout | Clears all pins and runs semantic layout again. |
-| Connect nodes | Enter connection mode, select a source and target, then add a label. Custom links are saved per task. |
-| Group nodes | Enter group mode, select two or more cards, then press the control again to name the group. |
+| Connect nodes | Enter connection mode, select a source and target, then use the dialog to add a label. Custom links are saved per task. |
+| Group nodes | Enter group mode, select two or more cards, then press the control again. Use the dialog to name the group. |
 | Fit nodes | Fits the map into the visible area. |
 | + / − | Zooms in or out. Trackpad pinch also zooms; two-finger scrolling moves the view. |
 | Node cards | Select a card to inspect its details. Drag a card to pin its position. Grouped cards remain labeled inside their parent. |
@@ -57,6 +57,8 @@ You can also select the **visualize-architecture** skill. Codex inspects the pro
 | Download nodes PNG | Saves the map with node cards, connections, and labels. Controls and the event panel are excluded. |
 | Copy reopen link | Copies the current task's view address. Save it before closing the panel. |
 | Message your agents | Sends guidance to the selected task. |
+
+Connection routes avoid node cards where space is available. Their labels use separate positions so that the text does not cover another label or a node card.
 
 To reopen a closed view without asking the agent, use your saved link or the **Open architecture** link in the task response. These links work while the local architecture service is running. After the service stops, ask Codex to open the view again to get a new link.
 

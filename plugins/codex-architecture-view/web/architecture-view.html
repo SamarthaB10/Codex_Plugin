@@ -67,10 +67,10 @@
     .node[data-pinned="true"] .node-kind::after{color:#fff}
     .node-toggle,.node-unpin,.detail-close{border-color:#fff;background:#000;color:#fff}
     .node:focus-visible,.edge:focus-visible{outline-color:#fff}
-    .edges{z-index:3}
+    .edges{z-index:0}
     .edge{stroke:#fff;stroke-width:2;opacity:1}
     .edge.selected{stroke:#fff;stroke-width:4}
-    .edge-label{font-size:11px;font-weight:700;paint-order:stroke;stroke:#000;stroke-width:5px;stroke-linejoin:round}
+    .edge-label{font-size:11px;font-weight:700;paint-order:stroke;pointer-events:none;stroke:#000;stroke-width:5px;stroke-linejoin:round}
     .architecture-summary{min-height:88px;max-height:64%;padding-bottom:20px;overflow:auto}
     .architecture-name{line-height:1.4}
     .layout-warning,.detail-warning{color:#fff;background:#000;border-color:#fff}
@@ -82,17 +82,36 @@
     .control[data-active="true"]{background:#fff;color:#000}
     .node[data-multi-selected="true"]{box-shadow:0 0 0 3px #fff,0 0 0 6px #000}
     .edge-label{dominant-baseline:middle}
+    .name-dialog{width:min(420px,calc(100vw - 32px));padding:0;border:1px solid #fff;border-radius:16px;background:#050505;color:#fff;box-shadow:0 24px 80px #000}
+    .name-dialog::backdrop{background:#000b}
+    .name-dialog-form{display:grid;gap:14px;padding:20px}
+    .name-dialog h2{margin:0;font-size:19px}
+    .name-dialog p{margin:0;color:#d0d0d0;font-size:12px;line-height:1.5}
+    .name-dialog label{display:grid;gap:7px;font-size:12px;font-weight:700}
+    .name-dialog input{width:100%;min-height:42px;border:1px solid #fff;border-radius:10px;background:#000;color:#fff;padding:0 11px}
+    .name-dialog input:focus-visible{outline:3px solid #fff;outline-offset:3px}
+    .name-dialog-actions{display:flex;justify-content:flex-end;gap:8px}
+    .name-dialog-actions button{min-height:38px;border:1px solid #fff;border-radius:10px;padding:0 12px;background:#000;color:#fff}
+    .name-dialog-actions .primary{background:#fff;color:#000;font-weight:700}
   </style>
 </head>
 <body>
   <main class="app" aria-label="Codex Architecture View">
     <header class="topbar"><div class="brand">Codex</div><div class="live-dot" aria-hidden="true"></div><div class="task-name" id="task-name">Connecting to task</div><div class="task-state" id="task-state">Connecting</div></header>
-    <nav class="controls" aria-label="Architecture controls"><select class="task-select" id="task-select" aria-label="Codex task"></select><button class="control" id="refresh">Refresh</button><button class="control" id="fit">Fit nodes</button><button class="control" id="arrange">Arrange</button><button class="control" id="reset-layout">Reset layout</button><button class="control" id="connect-nodes">Connect nodes</button><button class="control" id="group-nodes">Group nodes</button><button class="control" id="zoom-out" aria-label="Zoom out">−</button><button class="control" id="zoom-in" aria-label="Zoom in">+</button><button class="control" id="download-png" disabled>Download nodes PNG</button><button class="control" id="copy-reopen-link">Copy reopen link</button><input id="reopen-link" aria-label="Architecture reopen link" readonly hidden><div class="metrics"><span class="metric" id="node-count">0 nodes</span><span class="metric" id="agent-count">0 agents</span><span class="metric" id="link-count">0 links</span></div></nav>
+    <nav class="controls" aria-label="Architecture controls"><select class="task-select" id="task-select" aria-label="Codex task"></select><button class="control" id="refresh">Refresh</button><button class="control" id="fit">Fit nodes</button><button class="control" id="arrange">Arrange</button><button class="control" id="reset-layout">Reset layout</button><button class="control" id="connect-nodes" aria-pressed="false">Connect nodes</button><button class="control" id="group-nodes" aria-pressed="false">Group nodes</button><button class="control" id="zoom-out" aria-label="Zoom out">−</button><button class="control" id="zoom-in" aria-label="Zoom in">+</button><button class="control" id="download-png" disabled>Download nodes PNG</button><button class="control" id="copy-reopen-link">Copy reopen link</button><input id="reopen-link" aria-label="Architecture reopen link" readonly hidden><div class="metrics"><span class="metric" id="node-count">0 nodes</span><span class="metric" id="agent-count">0 agents</span><span class="metric" id="link-count">0 links</span></div></nav>
     <section class="workspace">
       <div class="canvas-wrap"><div class="canvas-head"><div class="eyebrow">Workspace architecture</div><div class="canvas-title">Live progression</div><div class="layout-warning" id="layout-warning" role="status" hidden>The last valid layout is in use. New nodes stay in the Unmapped area.</div></div><div class="canvas" id="canvas"><div id="canvas-size"><div class="node-layer" id="node-layer"><svg class="edges" id="edges"></svg></div></div></div><button class="message-trigger" id="message-trigger">Message your agents</button><section class="dock" id="dock" hidden><div class="dock-head">Message your agents<button class="close" id="close" aria-label="Close message panel">×</button></div><div class="conversation" id="conversation"></div><form class="composer" id="composer"><textarea id="message" aria-label="Guidance for agents" placeholder="Give guidance to this live task"></textarea><button class="send" aria-label="Send message">↑</button></form></section><div class="toast" id="toast" role="status"></div></div>
       <aside class="rail"><section class="section architecture-summary"><div class="section-title">Selected architecture <span class="count" id="revision">r0</span></div><div id="architecture-name" class="architecture-name">Whole system</div><div id="architecture-details"></div></section><details class="section rail-disclosure" id="agents-section" open><summary>Agents <span class="count" id="agent-summary">0 live</span></summary><div class="agent-list" id="agents"></div></details><details class="section rail-disclosure event-section" id="event-section" open><summary>Event stream <span class="count" id="event-count">0</span></summary><div class="events" id="events"></div></details></aside>
     </section>
   </main>
+  <dialog class="name-dialog" id="name-dialog" aria-labelledby="name-dialog-title" aria-describedby="name-dialog-description">
+    <form class="name-dialog-form" id="name-dialog-form">
+      <h2 id="name-dialog-title">Name item</h2>
+      <p id="name-dialog-description"></p>
+      <label>Label<input id="name-dialog-input" name="name" required autocomplete="off"></label>
+      <div class="name-dialog-actions"><button type="button" id="name-dialog-cancel">Cancel</button><button class="primary" type="submit" id="name-dialog-submit">Save</button></div>
+    </form>
+  </dialog>
   <script>/*__APP_BUNDLE__*/</script>
 </body>
 </html>

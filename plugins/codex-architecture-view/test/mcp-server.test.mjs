@@ -30,6 +30,9 @@ test("exposes the complete Architecture View MCP surface", async (context) => {
   assert.match(resource.contents[0].text, /EventSource/);
   assert.match(resource.contents[0].text, /localStorage/);
   assert.match(resource.contents[0].text, /pointerdown/);
+  assert.match(resource.contents[0].text, /id="name-dialog"/);
+  assert.match(resource.contents[0].text, /aria-labelledby="name-dialog-title"/);
+  assert.doesNotMatch(resource.contents[0].text, /window\.prompt/);
   assert.match(resource.contents[0].text, /Nodes fitted to viewport/);
   assert.match(resource.contents[0].text, /html,body\{[^}]*min-height:100dvh/);
   assert.match(resource.contents[0].text, /\.app\{[^}]*height:100dvh[^}]*min-height:0/);
