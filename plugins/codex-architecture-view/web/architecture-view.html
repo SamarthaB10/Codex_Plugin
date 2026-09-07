@@ -16,14 +16,75 @@
     @media(max-width:850px){.app{height:100dvh;max-height:100dvh}.canvas-wrap{min-height:0}.event-section{height:auto}}
     @media(max-width:560px){html[data-display-mode="pip"] .workspace{grid-template-columns:minmax(0,1fr) minmax(220px,38vw)}html[data-display-mode="pip"] .canvas-wrap{height:100%;min-height:0;border-right:1px solid var(--line);border-bottom:0}html[data-display-mode="pip"] .rail{height:100%;min-height:0}}
   </style>
+  <style>
+    .layout-warning{max-width:26rem;margin-top:.6rem;padding:.45rem .6rem;color:#e4c784;background:#171208;border:1px solid #604c25;border-radius:8px;font-size:11px;font-weight:500}
+    .node{height:132px;overflow:hidden}
+    .node[data-container="true"]{z-index:1;background:#090909cc;border-color:#505866}
+    .node[data-container="false"]{z-index:2}
+    .node[data-unmapped="true"]::before{border-style:dashed;border-color:#b08b48;box-shadow:none}
+    .node[data-selected="true"]{background:#121820;box-shadow:0 0 0 3px #8eb7ff66,0 18px 50px #000}
+    .node[data-pinned="true"] .node-kind::after{content:" · pinned";color:#c3d6f7}
+    .node-title{display:flex;align-items:center;gap:7px;min-width:0}
+    .node-title:not(:has(.node-toggle)){padding-left:0}
+    .node-toggle,.node-unpin{position:relative;z-index:3;display:inline-grid;place-items:center;flex:0 0 auto;border:1px solid #505050;background:#111;color:#ddd}
+    .node-toggle{width:22px;height:22px;border-radius:7px;font-size:14px}
+    .node-unpin{margin-left:auto;min-height:22px;padding:0 7px;border-radius:999px;font-size:9px;text-transform:uppercase;letter-spacing:.05em}
+    .node:focus-visible,.edge:focus-visible{outline:3px solid #8eb7ff;outline-offset:4px}
+    .edges{pointer-events:none}
+    .edge{pointer-events:stroke;cursor:pointer}
+    .edge.selected{stroke:var(--blue);stroke-width:3;opacity:1}
+    .architecture-summary{min-height:0;max-height:64%;overflow:auto;scrollbar-gutter:stable}
+    .architecture-name{margin-top:10px;font-size:16px;font-weight:700}
+    #architecture-details{position:relative;margin-top:10px}
+    .detail-close{position:absolute;top:-36px;right:0;width:28px;height:28px;border:1px solid var(--line);border-radius:8px;background:#090909;color:#fff;font-size:18px}
+    .detail-warning{padding:8px;color:#e4c784;background:#171208;border:1px solid #604c25;border-radius:8px;font-size:11px;line-height:1.4}
+    .detail-role{margin:0 30px 12px 0;color:#bbb;font-size:12px;line-height:1.5}
+    #architecture-details dl{display:grid;gap:4px;margin:0 0 12px}
+    #architecture-details dl div{display:grid;grid-template-columns:78px minmax(0,1fr);gap:8px}
+    #architecture-details dt,#architecture-details dd{margin:0;font-size:11px;line-height:1.45;overflow-wrap:anywhere}
+    #architecture-details dt,.detail-group h3,.detail-group p{color:#888}
+    .detail-group{padding:10px 0;border-top:1px solid #292929}
+    .detail-group h3{margin:0 0 6px;font-size:10px;text-transform:uppercase;letter-spacing:.08em}
+    .detail-group p{margin:0;font-size:11px}
+    .detail-group ul{display:grid;gap:5px;padding:0;margin:0;list-style:none}
+    .detail-group li{color:#c9c9c9;font-size:11px;line-height:1.45;overflow-wrap:anywhere}
+    .rail-disclosure{padding:0}
+    .rail-disclosure>summary{display:flex;align-items:center;justify-content:space-between;padding:16px;cursor:pointer;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;list-style:none}
+    .rail-disclosure>summary::-webkit-details-marker{display:none}
+    .rail-disclosure .agent-list,.rail-disclosure .events{margin:0;padding:0 16px 14px;border-top:1px solid #292929}
+    .rail-disclosure.event-section[open]{display:flex;min-height:0;flex-direction:column}
+    .rail-disclosure.event-section[open] .events{flex:1;overflow:auto}
+    :root{--line:#fff;--muted:#fff;--blue:#fff;--green:#fff;--red:#fff}
+    body,.app,.canvas-wrap,.rail{background-color:#000;color:#fff}
+    .live-dot{display:none}
+    .task-state,.metric,.eyebrow,.node-kind,.node-role,.edge-label,.count,.agent-activity,.event-meta,.detail-role,#architecture-details dt,#architecture-details dd,.detail-group h3,.detail-group p,.detail-group li{color:#fff;fill:#fff}
+    .canvas-wrap{background-image:radial-gradient(#ffffff38 1px,transparent 1px)}
+    .node,.node:hover,.node[data-container="true"],.node[data-selected="true"]{background:#000;border-color:#fff;box-shadow:none}
+    .task-state,.node-status{display:none}
+    .node::before,.node[data-status]::before,.node[data-unmapped="true"]::before{border-color:#fff;box-shadow:none}
+    .node[data-selected="true"]{box-shadow:0 0 0 3px #fff}
+    .node[data-pinned="true"] .node-kind::after{color:#fff}
+    .node-toggle,.node-unpin,.detail-close{border-color:#fff;background:#000;color:#fff}
+    .node:focus-visible,.edge:focus-visible{outline-color:#fff}
+    .edges{z-index:3}
+    .edge{stroke:#fff;stroke-width:2;opacity:1}
+    .edge.selected{stroke:#fff;stroke-width:4}
+    .edge-label{font-size:11px;font-weight:700;paint-order:stroke;stroke:#000;stroke-width:5px;stroke-linejoin:round}
+    .architecture-summary{min-height:88px;max-height:64%;padding-bottom:20px;overflow:auto}
+    .architecture-name{line-height:1.4}
+    .layout-warning,.detail-warning{color:#fff;background:#000;border-color:#fff}
+    .detail-group,.rail-disclosure .agent-list,.rail-disclosure .events{border-color:#fff}
+    .event-mark{display:none}.event{grid-template-columns:1fr}
+    @media(prefers-reduced-motion:no-preference){.node:not(.dragging){transition:transform .22s cubic-bezier(.16,1,.3,1),box-shadow .16s ease,background .16s ease}}
+  </style>
 </head>
 <body>
   <main class="app" aria-label="Codex Architecture View">
     <header class="topbar"><div class="brand">Codex</div><div class="live-dot" aria-hidden="true"></div><div class="task-name" id="task-name">Connecting to task</div><div class="task-state" id="task-state">Connecting</div></header>
-    <nav class="controls" aria-label="Architecture controls"><select class="task-select" id="task-select" aria-label="Codex task"></select><button class="control" id="refresh">Refresh</button><button class="control" id="fit">Fit nodes</button><button class="control" id="zoom-out" aria-label="Zoom out">−</button><button class="control" id="zoom-in" aria-label="Zoom in">+</button><button class="control" id="download-png" disabled>Download nodes PNG</button><button class="control" id="copy-reopen-link">Copy reopen link</button><input id="reopen-link" aria-label="Architecture reopen link" readonly hidden><div class="metrics"><span class="metric" id="node-count">0 nodes</span><span class="metric" id="agent-count">0 agents</span><span class="metric" id="link-count">0 links</span></div></nav>
+    <nav class="controls" aria-label="Architecture controls"><select class="task-select" id="task-select" aria-label="Codex task"></select><button class="control" id="refresh">Refresh</button><button class="control" id="fit">Fit nodes</button><button class="control" id="arrange">Arrange</button><button class="control" id="reset-layout">Reset layout</button><button class="control" id="zoom-out" aria-label="Zoom out">−</button><button class="control" id="zoom-in" aria-label="Zoom in">+</button><button class="control" id="download-png" disabled>Download nodes PNG</button><button class="control" id="copy-reopen-link">Copy reopen link</button><input id="reopen-link" aria-label="Architecture reopen link" readonly hidden><div class="metrics"><span class="metric" id="node-count">0 nodes</span><span class="metric" id="agent-count">0 agents</span><span class="metric" id="link-count">0 links</span></div></nav>
     <section class="workspace">
-      <div class="canvas-wrap"><div class="canvas-head"><div class="eyebrow">Workspace architecture</div><div class="canvas-title">Live progression</div></div><div class="canvas" id="canvas"><div id="canvas-size"><div class="node-layer" id="node-layer"><svg class="edges" id="edges"></svg></div></div></div><button class="message-trigger" id="message-trigger">Message your agents</button><section class="dock" id="dock" hidden><div class="dock-head">Message your agents<button class="close" id="close" aria-label="Close message panel">×</button></div><div class="conversation" id="conversation"></div><form class="composer" id="composer"><textarea id="message" aria-label="Guidance for agents" placeholder="Give guidance to this live task"></textarea><button class="send" aria-label="Send message">↑</button></form></section><div class="toast" id="toast" role="status"></div></div>
-      <aside class="rail"><section class="section"><div class="section-title">Selected architecture <span class="count" id="revision">r0</span></div><div id="architecture-name" style="font-size:16px;font-weight:700;margin-top:10px">Whole system</div></section><section class="section"><div class="section-title">Agents <span class="count" id="agent-summary">0 live</span></div><div class="agent-list" id="agents"></div></section><section class="section event-section"><div class="section-title">Event stream <span class="count" id="event-count">0</span></div><div class="events" id="events"></div></section></aside>
+      <div class="canvas-wrap"><div class="canvas-head"><div class="eyebrow">Workspace architecture</div><div class="canvas-title">Live progression</div><div class="layout-warning" id="layout-warning" role="status" hidden>The last valid layout is in use. New nodes stay in the Unmapped area.</div></div><div class="canvas" id="canvas"><div id="canvas-size"><div class="node-layer" id="node-layer"><svg class="edges" id="edges"></svg></div></div></div><button class="message-trigger" id="message-trigger">Message your agents</button><section class="dock" id="dock" hidden><div class="dock-head">Message your agents<button class="close" id="close" aria-label="Close message panel">×</button></div><div class="conversation" id="conversation"></div><form class="composer" id="composer"><textarea id="message" aria-label="Guidance for agents" placeholder="Give guidance to this live task"></textarea><button class="send" aria-label="Send message">↑</button></form></section><div class="toast" id="toast" role="status"></div></div>
+      <aside class="rail"><section class="section architecture-summary"><div class="section-title">Selected architecture <span class="count" id="revision">r0</span></div><div id="architecture-name" class="architecture-name">Whole system</div><div id="architecture-details"></div></section><details class="section rail-disclosure" id="agents-section" open><summary>Agents <span class="count" id="agent-summary">0 live</span></summary><div class="agent-list" id="agents"></div></details><details class="section rail-disclosure event-section" id="event-section" open><summary>Event stream <span class="count" id="event-count">0</span></summary><div class="events" id="events"></div></details></aside>
     </section>
   </main>
   <script>/*__APP_BUNDLE__*/</script>

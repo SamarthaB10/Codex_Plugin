@@ -13,7 +13,8 @@ const bundle = await build({
   write: false,
   target: ["es2022"],
 });
-const html = source.replace("/*__APP_BUNDLE__*/", () => bundle.outputFiles[0].text);
+const bundledScript = bundle.outputFiles[0].text.replace(/[ \t]+$/gm, "");
+const html = source.replace("/*__APP_BUNDLE__*/", () => bundledScript);
 const output = resolve(root, "dist/architecture-view.html");
 await mkdir(dirname(output), { recursive: true });
 await writeFile(output, html);
