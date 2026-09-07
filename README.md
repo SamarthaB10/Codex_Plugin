@@ -46,9 +46,12 @@ You can also select the **visualize-architecture** skill. Codex inspects the pro
 | Control | What it does |
 | --- | --- |
 | Task selector | Shows architecture for another task. |
+| Arrange | Runs semantic layout again and keeps pinned nodes in place. |
+| Reset layout | Clears all pins and runs semantic layout again. |
 | Fit nodes | Fits the map into the visible area. |
 | + / − | Zooms in or out. Trackpad pinch also zooms; two-finger scrolling moves the view. |
-| Node cards | Drag a card to change its position. |
+| Node cards | Select a card to inspect its details. Drag a card to pin its position. |
+| Container toggle | Hides or shows a container's child nodes. Hidden links are grouped at the container. |
 | Download nodes PNG | Saves the map with node cards, connections, and labels. Controls and the event panel are excluded. |
 | Copy reopen link | Copies the current task's view address. Save it before closing the panel. |
 | Message your agents | Sends guidance to the selected task. |
