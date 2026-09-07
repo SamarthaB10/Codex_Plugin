@@ -9,6 +9,11 @@ const byId = (id) => document.getElementById(id);
 const positions = new Map();
 const pins = new Map();
 const collapsedNodes = new Set();
+const customRelationships = new Map();
+const customGroups = new Map();
+let interactionMode = null;
+let connectSourceId = null;
+let selectedNodeIds = new Set();
 let positionTaskId = null;
 let nodeLayouts = {};
 let visibleGraph = { visibleNodes: [], visibleRelationships: [] };
@@ -36,6 +41,11 @@ function loadPositions(threadId) {
   positions.clear();
   pins.clear();
   collapsedNodes.clear();
+  customRelationships.clear();
+  customGroups.clear();
+  selectedNodeIds.clear();
+  interactionMode = null;
+  connectSourceId = null;
   nodeLayouts = {};
   layoutSignature = "";
   selectedNodeId = null;
@@ -61,6 +71,8 @@ function loadPositions(threadId) {
       }
     }
     for (const nodeId of stored.collapsedNodes || []) if (typeof nodeId === "string") collapsedNodes.add(nodeId);
+    for (const relation of stored.customRelationships || []) if (relation?.id && relation.from && relation.to) customRelationships.set(relation.id, relation);
+    for (const group of stored.customGroups || []) if (group?.id && Array.isArray(group.memberIds)) customGroups.set(group.id, group);
   } catch {
     // Storage can be unavailable in a restricted Codex panel.
   }
@@ -73,10 +85,29 @@ function saveWorkspace() {
       version: 2,
       pins: Object.fromEntries(pins),
       collapsedNodes: [...collapsedNodes],
+      customRelationships: [...customRelationships.values()],
+      customGroups: [...customGroups.values()],
     }));
   } catch {
     // Storage can be unavailable in a restricted Codex panel.
   }
+}
+
+function architectureNodes() {
+  const nodes = (state?.nodes || []).map((node) => ({ ...node }));
+  const byId = new Map(nodes.map((node) => [node.id, node]));
+  for (const group of customGroups.values()) {
+    nodes.push({ id: group.id, name: group.name, nodeKind: "system", role: "User-defined group", status: "settled", verification: "verified", evidence: ["Created in Architecture View"] });
+    for (const memberId of group.memberIds) {
+      const node = byId.get(memberId);
+      if (node) node.parentId = group.id;
+    }
+  }
+  return nodes;
+}
+
+function architectureRelationships() {
+  return [...(state?.relationships || []), ...customRelationships.values()];
 }
 
 function structured(result) {
@@ -157,6 +188,31 @@ function descendantIds(nodeId) {
 }
 
 function selectNode(node) {
+  if (interactionMode === "connect") {
+    if (!connectSourceId) {
+      connectSourceId = node.id;
+      showToast(`Connection starts at ${node.name}. Select another node.`);
+      renderCanvas();
+      return;
+    }
+    if (connectSourceId === node.id) return;
+    const label = window.prompt("Connection label", "Connects to");
+    if (label?.trim()) {
+      const id = `custom:${connectSourceId}:${node.id}:${Date.now()}`;
+      customRelationships.set(id, { id, from: connectSourceId, to: node.id, kind: "depends-on", label: label.trim(), verification: "verified", custom: true });
+      saveWorkspace();
+      showToast("Connection added");
+    }
+    interactionMode = null;
+    connectSourceId = null;
+    renderCanvas();
+    return;
+  }
+  if (interactionMode === "group") {
+    selectedNodeIds.has(node.id) ? selectedNodeIds.delete(node.id) : selectedNodeIds.add(node.id);
+    renderCanvas();
+    return;
+  }
   selectedNodeId = node.id;
   selectedRelationshipIds = [];
   lastSelectedNode = node;
@@ -170,6 +226,7 @@ function createNode(node) {
   element.dataset.nodeId = node.id;
   element.dataset.status = statusClass(node.status);
   element.dataset.selected = String(selectedNodeId === node.id);
+  element.dataset.multiSelected = String(selectedNodeIds.has(node.id));
   element.dataset.pinned = String(pins.has(node.id));
   element.dataset.unmapped = String(Boolean(nodeLayouts[node.id]?.unmapped));
   const hasChildren = visibleGraph.visibleNodes.some(({ parentId }) => parentId === node.id);
@@ -183,7 +240,7 @@ function createNode(node) {
   const title = document.createElement("div");
   title.className = "node-title";
   title.textContent = node.name;
-  if ((state?.nodes || []).some(({ parentId }) => parentId === node.id)) {
+  if (architectureNodes().some(({ parentId }) => parentId === node.id)) {
     const toggle = document.createElement("button");
     toggle.type = "button";
     toggle.className = "node-toggle";
@@ -215,7 +272,7 @@ function createNode(node) {
   role.className = "node-role";
   role.textContent = node.role;
   element.append(kind, title, role);
-  const childNodes = (state?.nodes || []).filter(({ parentId }) => parentId === node.id);
+  const childNodes = architectureNodes().filter(({ parentId }) => parentId === node.id);
   if (collapsedNodes.has(node.id) && childNodes.length) {
     const grouped = document.createElement("div");
     grouped.className = "node-children";
@@ -304,7 +361,8 @@ function renderEdges() {
   svg.setAttribute("width", maxX);
   svg.setAttribute("height", maxY);
   svg.replaceChildren();
-  for (const relation of visibleGraph.visibleRelationships) {
+  const labelLanes = new Map();
+  for (const [relationIndex, relation] of visibleGraph.visibleRelationships.entries()) {
     const from = positions.get(relation.from);
     const to = positions.get(relation.to);
     if (!from || !to) continue;
@@ -314,7 +372,14 @@ function renderEdges() {
     const y1 = from.y + Math.min(66, (fromLayout?.height || 112) / 2);
     const x2 = to.x;
     const y2 = to.y + Math.min(66, (toLayout?.height || 112) / 2);
-    const bend = Math.max(50, Math.abs(x2 - x1) * .45);
+    const direction = x2 >= x1 ? 1 : -1;
+    const bend = Math.max(56, Math.abs(x2 - x1) * .42);
+    const laneKey = `${Math.round((y1 + y2) / 2 / 32)}`;
+    const lane = (labelLanes.get(laneKey) || 0) + 1;
+    labelLanes.set(laneKey, lane);
+    const midX = (x1 + x2) / 2;
+    const routeOffset = (relationIndex % 2 === 0 ? 1 : -1) * (34 + Math.floor(relationIndex / 2) * 22);
+    const labelY = (y1 + y2) / 2 + routeOffset - 10 - (lane - 1) * 12;
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
     path.setAttribute("class", "edge");
     path.dataset.relationshipId = relation.id;
@@ -322,11 +387,11 @@ function renderEdges() {
     path.setAttribute("tabindex", "0");
     path.setAttribute("aria-label", `${relation.label}: ${relation.from} to ${relation.to}`);
     if (relation.relationshipIds.some((id) => selectedRelationshipIds.includes(id))) path.classList.add("selected");
-    path.setAttribute("d", `M ${x1} ${y1} C ${x1 + bend} ${y1}, ${x2 - bend} ${y2}, ${x2} ${y2}`);
+    path.setAttribute("d", `M ${x1} ${y1} C ${x1 + direction * bend} ${y1 + routeOffset}, ${x2 - direction * bend} ${y2 + routeOffset}, ${x2} ${y2}`);
     const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
     label.setAttribute("class", "edge-label");
-    label.setAttribute("x", String((x1 + x2) / 2));
-    label.setAttribute("y", String((y1 + y2) / 2 - 7));
+    label.setAttribute("x", String(midX));
+    label.setAttribute("y", String(labelY));
     label.setAttribute("text-anchor", "middle");
     label.textContent = relation.label || relation.kind;
     const select = () => {
@@ -376,7 +441,7 @@ function fitNodes() {
 function renderCanvas() {
   const layer = byId("node-layer");
   layer.querySelectorAll(".node,.empty").forEach((element) => element.remove());
-  const nodes = state?.nodes || [];
+  const nodes = architectureNodes();
   byId("download-png").disabled = nodes.length === 0;
   if (nodes.length === 0) {
     const empty = document.createElement("div");
@@ -386,7 +451,7 @@ function renderCanvas() {
     renderEdges();
     return;
   }
-  visibleGraph = visibleArchitecture(nodes, state?.relationships || [], collapsedNodes);
+  visibleGraph = visibleArchitecture(nodes, architectureRelationships(), collapsedNodes);
   positionNodes(visibleGraph.visibleNodes);
   const orderedNodes = [...visibleGraph.visibleNodes].sort((left, right) => {
     const depth = (node) => {
@@ -439,11 +504,11 @@ function detailList(title, items) {
 function renderArchitectureDetails() {
   const container = byId("architecture-details");
   container.replaceChildren();
-  const currentNode = (state?.nodes || []).find(({ id }) => id === selectedNodeId);
+  const currentNode = architectureNodes().find(({ id }) => id === selectedNodeId);
   if (currentNode) lastSelectedNode = currentNode;
   const removedNode = selectedNodeId && !currentNode && lastSelectedNode?.id === selectedNodeId ? lastSelectedNode : null;
   const node = currentNode || removedNode;
-  const relationships = (state?.relationships || []).filter(({ id }) => selectedRelationshipIds.includes(id));
+  const relationships = architectureRelationships().filter(({ id }) => selectedRelationshipIds.includes(id));
   const hasSelection = Boolean(node || relationships.length);
   byId("architecture-name").textContent = node?.name || (relationships.length ? `${relationships.length} relationships` : "Whole system");
 
@@ -474,7 +539,7 @@ function renderArchitectureDetails() {
     role.className = "detail-role";
     role.textContent = node.role;
     const facts = document.createElement("dl");
-    const nodeById = new Map((state?.nodes || []).map((item) => [item.id, item]));
+    const nodeById = new Map(architectureNodes().map((item) => [item.id, item]));
     for (const [label, value] of [
       ["Type", node.nodeKind || "module"], ["Status", node.status], ["Verification", node.verification || "unverified"],
       ["Parent", nodeById.get(node.parentId)?.name || "Workspace root"],
@@ -487,8 +552,8 @@ function renderArchitectureDetails() {
       row.append(term, detail);
       facts.append(row);
     }
-    const children = (state?.nodes || []).filter(({ parentId }) => parentId === node.id);
-    const linked = (state?.relationships || []).filter(({ from, to }) => from === node.id || to === node.id);
+    const children = architectureNodes().filter(({ parentId }) => parentId === node.id);
+    const linked = architectureRelationships().filter(({ from, to }) => from === node.id || to === node.id);
     container.append(
       role,
       facts,
@@ -502,7 +567,7 @@ function renderArchitectureDetails() {
       detailList("Evidence", node.evidence || []),
     );
   } else if (relationships.length) {
-    const nodeById = new Map((state?.nodes || []).map((item) => [item.id, item]));
+    const nodeById = new Map(architectureNodes().map((item) => [item.id, item]));
     container.append(detailList("Underlying relationships", relationships.map((relation) =>
       `${nodeById.get(relation.from)?.name || relation.from} → ${nodeById.get(relation.to)?.name || relation.to} · ${relation.label || relation.kind}`,
     )));
@@ -597,9 +662,9 @@ function render() {
   if (state.thread.id !== positionTaskId) loadPositions(state.thread.id);
   byId("task-name").textContent = state.thread.name;
   byId("task-state").textContent = state.thread.status;
-  byId("node-count").textContent = `${state.nodes.length} nodes`;
+  byId("node-count").textContent = `${architectureNodes().length} nodes`;
   byId("agent-count").textContent = `${state.agents.length} agents`;
-  byId("link-count").textContent = `${state.relationships.length} links`;
+  byId("link-count").textContent = `${architectureRelationships().length} links`;
   byId("revision").textContent = `r${state.revision}`;
   byId("agent-summary").textContent = `${state.agents.length} live`;
   byId("event-count").textContent = state.events.length;
@@ -714,9 +779,45 @@ byId("arrange").addEventListener("click", () => {
   requestLayout({ force: true });
   showToast("Architecture layout recalculated");
 });
+byId("connect-nodes").addEventListener("click", () => {
+  interactionMode = interactionMode === "connect" ? null : "connect";
+  connectSourceId = null;
+  byId("group-nodes").dataset.active = "false";
+  byId("connect-nodes").dataset.active = String(interactionMode === "connect");
+  showToast(interactionMode === "connect" ? "Select the source, then the target node" : "Connection mode off");
+});
+byId("group-nodes").addEventListener("click", () => {
+  if (interactionMode === "group") {
+    const memberIds = [...selectedNodeIds];
+    if (memberIds.length < 2) {
+      showToast("Select at least two nodes");
+      return;
+    }
+    const name = window.prompt("Group name", "New architecture group");
+    if (name?.trim()) {
+      const id = `custom-group:${Date.now()}`;
+      customGroups.set(id, { id, name: name.trim(), memberIds });
+      selectedNodeIds.clear();
+      interactionMode = null;
+      byId("group-nodes").dataset.active = "false";
+      saveWorkspace();
+      layoutSignature = "";
+      renderCanvas();
+      showToast("Group created");
+    }
+    return;
+  }
+  selectedNodeIds.clear();
+  interactionMode = "group";
+  byId("connect-nodes").dataset.active = "false";
+  byId("group-nodes").dataset.active = "true";
+  showToast("Select nodes to group, then press Group nodes again");
+});
 byId("reset-layout").addEventListener("click", () => {
   pins.clear();
   positions.clear();
+  selectedNodeIds.clear();
+  interactionMode = null;
   nodeLayouts = {};
   saveWorkspace();
   layoutSignature = "";
